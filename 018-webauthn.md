@@ -1,7 +1,3 @@
-
-  
-  
-
 #  WebAuthn Implementation (WIP NOT READY!)
 - Implementation Owner: (@PineappleIOnic)
 - Start Date: (31-05-2021)
@@ -50,6 +46,58 @@ The flow will most likely go as follows:
 
 1. User requests registration from Server sending all details we need apart from a password (email, username, etc...) `POST /v1/webauthn`
 
+<details>
+<summary>Example code</summary>
+
+```js
+App::post('/v1/webauthn')
+    ->param('email', '', new Email(), 'Email Address', false)
+    ->param('name', '', new Text(128), 'Username', false)
+    ->inject('request')
+    ->inject('response')
+    ->action(function ($email, $name, $request, $response) {
+        $challenge = base64_encode(random_bytes(40)); // Generate a challenge
+
+        // Generate a Relying Party Entity
+        // {
+        //    'id': 'localhost:8080' // ID is the Origin Domain.
+        //    'displayName': 'Appwrite Auth Demo' // This name is displayed to the user during authentication.
+        // }
+        
+        $rpEntity = new PublicKeyCredentialRpEntity(
+            'Appwrite Auth Demo', //Name
+            'localhost:8080', //ID
+            null //Icon Optional. Base64 PNG
+        );
+
+        // Generate a User Entity
+        // {
+        //    'id': 'FZtJm7I9NR9iQcIyTwGEVAkMNQ62M7MlCDcraQ3y' // Base64 encoded random bytes. Generated earlier.
+        //    'name': 'test@gmail.com', // Email
+        //    'displayName': 'Username' // Username. Displayed on auth
+        // }
+
+        // User Entity
+        $userEntity = new PublicKeyCredentialUserEntity(
+            $email, //Name
+            'FZtJm7I9NR9iQcIyTwGEVAkMNQ62M7MlCDcraQ3y', //ID
+            $name, //Display name
+            null //Icon Optional. Base64 PNG
+        );
+
+        $sessionStore = new userEntry();
+
+        $sessionStore->challenge = $challenge;
+        $sessionStore->userEntity = $userEntity;
+
+        $sessions[] = $sessionStore;
+
+        $response->json(['challenge' => $challenge, 'userIdentity' => $userEntity, 'rp' => $rpEntity]);
+    });
+```
+
+</details>
+
 2. Server responds with a challenge (cryptographic randomly generated string), a user ID and relying party info
 
 <details>
@@ -58,11 +106,16 @@ The flow will most likely go as follows:
 
 ```json
 {
-  "challenge": "bWwvPTa6dRQrXwNXP1vldYqtSUyMdpHU36h9tcSG", // NOTE: Will be converted to Uint8Array by Client SDK
-  "uid": "FZtJm7I9NR9iQcIyTwGEVAkMNQ62M7MlCDcraQ3y", // NOTE: Will be converted to Uint8Array by Client SDK
-  "partyinfo": {
-    "name": "Name of project or something else (note: this gets displayed to the user.)"
-  }
+    "challenge": "vSuzSbqukOYHefWRhn61BJDaXWFWphpgBIoz/I1E0x+CLK8nI+2bHA==",  // NOTE: Will be converted to Uint8Array by Client SDK
+    "userIdentity": {
+        "name": "test@gmail.com",
+        "id": "FZtJm7I9NR9iQcIyTwGEVAkMNQ62M7MlCDcraQ3y", // NOTE: Will be converted to Uint8Array by Client SDK
+        "displayName": "Username"
+    },
+    "rp": {
+        "name": "Appwrite Auth Demo",
+        "id": "localhost:8080"
+    }
 }
 ```
 </details>
@@ -76,16 +129,13 @@ The flow will most likely go as follows:
 ```js
 const publicKey = {
     attestation: "none",
-    challenge: "Challenge sent by server.", // NOTE: The type needs to be Uint8Array. Using a string for an example.
-    rp: {
-        name: "partyInfo name given by server",
-        id: "Origin Domain (if omited defaults to current domain)"
-    },
+    challenge: _base64ToArrayBuffer(response.challenge), // NOTE: The type needs to be Uint8Array. Hence the function (needs to be written ourselves.)
+    rp: firstStageResponse.rp,
     timeout: 60000, // 1 Minute in seconds
     user: {
-        name: "User's Email Address",
-        displayName: "User's Username or Email Address",
-        id: "uid Generated from server" // NOTE: The type needs to be Uint8Array. Using a string for an example.
+      name: response.userIdentity.name,
+      id: _base64ToArrayBuffer(response.userIdentity.id),
+      displayName: response.userIdentity.displayName
     },
     pubKeyCredParams: [{
         type: "public-key",
