@@ -104,7 +104,7 @@ App::post('/v1/webauthn')
 <summary>First Draft Example Response:</summary>
 <br />
 
-```json
+```json5
 {
     "challenge": "vSuzSbqukOYHefWRhn61BJDaXWFWphpgBIoz/I1E0x+CLK8nI+2bHA==",  // NOTE: Will be converted to Uint8Array by Client SDK
     "userIdentity": {
